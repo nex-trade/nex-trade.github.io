@@ -311,7 +311,7 @@
       <div class="upload-grid">
         <!-- Front -->
         <div class="upload-box" id="uploadBoxFront" onclick="document.getElementById('fileFront').click()">
-          <input type="file" id="fileFront" accept="image/*" onchange="handleFile('front', this)"/>
+          <input type="file" id="fileFront" accept="image/jpeg,image/jpg,image/png,image/heic,image/heif" onchange="handleFile('front', this)"/>
           <div class="upload-icon">
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
           </div>
@@ -323,7 +323,7 @@
         </div>
         <!-- Back -->
         <div class="upload-box" id="uploadBoxBack" onclick="document.getElementById('fileBack').click()">
-          <input type="file" id="fileBack" accept="image/*" onchange="handleFile('back', this)"/>
+          <input type="file" id="fileBack" accept="image/jpeg,image/jpg,image/png,image/heic,image/heif" onchange="handleFile('back', this)"/>
           <div class="upload-icon">
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
           </div>
@@ -431,10 +431,14 @@
 <script>
   initTheme();
 
-  var selectedIdType = 'passport';
-  var fileDataFront   = null;  // base64 string
-  var fileDataBack    = null;
-  var currentUid      = null;
+  var selectedIdType    = 'passport';
+  var fileObjFront      = null;
+  var fileObjBack       = null;
+  var fileDataFront     = null;
+  var fileDataBack      = null;
+  var currentUid        = null;
+  var CLOUDINARY_NAME   = 'dyyg1ighv';
+  var CLOUDINARY_PRESET = 'nextrade';
 
   // ── AUTH GATE ────────────────────────────────────────────────────────────
   auth.onAuthStateChanged(async function(user) {
@@ -498,23 +502,19 @@
     spinner.style.display = 'block';
     box.classList.add('uploading');
 
-    var reader = new FileReader();
-    reader.onload = function(e) {
-      var dataUrl = e.target.result;
-      if (side === 'front') { fileDataFront = dataUrl; }
-      else                  { fileDataBack  = dataUrl; }
+    if (side === 'front') { fileObjFront = file; fileDataFront = 'pending'; }
+    else                  { fileObjBack  = file; fileDataBack  = 'pending'; }
 
-      preview.src = dataUrl;
-      preview.style.display = 'block';
-      fname.textContent = file.name;
-      fname.style.display = 'block';
-      spinner.style.display = 'none';
-      box.classList.remove('uploading');
-      box.classList.add('has-file');
-      hideKycError();
-      updateSubmitButton();
-    };
-    reader.readAsDataURL(file);
+    var objectUrl = URL.createObjectURL(file);
+    preview.src = objectUrl;
+    preview.style.display = 'block';
+    fname.textContent = file.name;
+    fname.style.display = 'block';
+    spinner.style.display = 'none';
+    box.classList.remove('uploading');
+    box.classList.add('has-file');
+    hideKycError();
+    updateSubmitButton();
   }
 
   function updateSubmitButton() {
@@ -530,6 +530,21 @@
     }
   }
 
+  // ── CLOUDINARY UPLOAD ────────────────────────────────────────────────────
+  async function uploadToCloudinary(file) {
+    var formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', CLOUDINARY_PRESET);
+    formData.append('folder', 'kyc');
+    var r = await fetch('https://api.cloudinary.com/v1_1/' + CLOUDINARY_NAME + '/image/upload', {
+      method: 'POST',
+      body: formData
+    });
+    if (!r.ok) throw new Error('Image upload failed. Please try again.');
+    var data = await r.json();
+    return data.secure_url;
+  }
+
   // ── SUBMIT KYC ───────────────────────────────────────────────────────────
   async function submitKyc() {
     if (!fileDataFront || !fileDataBack) {
@@ -543,6 +558,12 @@
     hideKycError();
 
     try {
+      btn.textContent = 'Uploading front image...';
+      var frontUrl = await uploadToCloudinary(fileObjFront);
+      btn.textContent = 'Uploading back image...';
+      var backUrl  = await uploadToCloudinary(fileObjBack);
+      btn.textContent = 'Saving submission...';
+
       // Check if auto-verify is enabled globally
       var settingsSnap = await db.collection('settings').doc('kyc').get();
       var autoVerify   = settingsSnap.exists && settingsSnap.data().autoVerify === true;
@@ -552,8 +573,8 @@
       await db.collection('kyc').doc(currentUid).set({
         userId:     currentUid,
         idType:     selectedIdType,
-        frontImage: fileDataFront,
-        backImage:  fileDataBack,
+        frontImage: frontUrl,
+        backImage:  backUrl,
         status:     status,
         submittedAt: firebase.firestore.FieldValue.serverTimestamp(),
         reviewedAt:  autoVerify ? firebase.firestore.FieldValue.serverTimestamp() : null,
@@ -569,12 +590,12 @@
       if (autoVerify) {
         showStatusBanner('verified');
         markStep3Active();
-        showSubmittedSection({ frontImage: fileDataFront, backImage: fileDataBack, status: 'verified' }, false);
+        showSubmittedSection({ frontImage: frontUrl, backImage: backUrl, status: 'verified' }, false);
         document.getElementById('kycUploadSection').style.display = 'none';
         document.getElementById('kycTipsCard').style.display = 'none';
       } else {
         showStatusBanner('pending');
-        showSubmittedSection({ frontImage: fileDataFront, backImage: fileDataBack, status: 'pending' }, false);
+        showSubmittedSection({ frontImage: frontUrl, backImage: backUrl, status: 'pending' }, false);
         document.getElementById('kycUploadSection').style.display = 'none';
         document.getElementById('kycTipsCard').style.display = 'none';
       }
@@ -666,6 +687,7 @@
     document.getElementById('kycStatusBanner').style.display     = 'none';
     // Reset file inputs
     fileDataFront = null; fileDataBack = null;
+    fileObjFront  = null; fileObjBack  = null;
     ['Front','Back'].forEach(function(s) {
       document.getElementById('uploadBox'+s).classList.remove('has-file');
       document.getElementById('preview'+s).style.display = 'none';
