@@ -311,7 +311,7 @@
       <div class="upload-grid">
         <!-- Front -->
         <div class="upload-box" id="uploadBoxFront" onclick="document.getElementById('fileFront').click()">
-          <input type="file" id="fileFront" accept="image/jpeg,image/jpg,image/png,image/heic,image/heif" onchange="handleFile('front', this)"/>
+          <input type="file" id="fileFront" accept="image/jpeg,image/jpg,image/png,image/heic,image/heif" onclick="this.value=''" onchange="handleFile('front', this)"/>
           <div class="upload-icon">
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
           </div>
@@ -323,7 +323,7 @@
         </div>
         <!-- Back -->
         <div class="upload-box" id="uploadBoxBack" onclick="document.getElementById('fileBack').click()">
-          <input type="file" id="fileBack" accept="image/jpeg,image/jpg,image/png,image/heic,image/heif" onchange="handleFile('back', this)"/>
+          <input type="file" id="fileBack" accept="image/jpeg,image/jpg,image/png,image/heic,image/heif" onclick="this.value=''" onchange="handleFile('back', this)"/>
           <div class="upload-icon">
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
           </div>
@@ -488,8 +488,10 @@
   // ── FILE HANDLING ─────────────────────────────────────────────────────────
   function handleFile(side, input) {
     var file = input.files[0];
-    if (!file) return;
-    input.value = '';
+    if (!file) {
+      input.value = '';
+      return;
+    }
     if (file.size > 5 * 1024 * 1024) {
       showKycError('File is too large. Maximum size is 5MB.');
       input.value = '';
