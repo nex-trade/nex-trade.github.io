@@ -535,7 +535,6 @@
     var formData = new FormData();
     formData.append('file', file);
     formData.append('upload_preset', CLOUDINARY_PRESET);
-    formData.append('folder', 'kyc');
     var r = await fetch('https://api.cloudinary.com/v1_1/' + CLOUDINARY_NAME + '/image/upload', {
       method: 'POST',
       body: formData
