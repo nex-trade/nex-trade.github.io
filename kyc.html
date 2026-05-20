@@ -446,13 +446,20 @@
       {
         cloudName:    CLOUDINARY_NAME,
         uploadPreset: CLOUDINARY_PRESET,
-        sources:      ['local', 'camera'],   // file picker + camera on mobile
+        sources:      ['local'],             // 'local' covers gallery+camera on iOS; 'camera' source breaks iOS WebView
         multiple:     false,
         maxFileSize:  5242880,               // 5 MB
         clientAllowedFormats: ['jpg', 'jpeg', 'png', 'heic', 'heif', 'webp'],
         cropping:     false,
         showSkipCropButton: false,
         showPoweredBy: false,
+        // ── iOS Safari fixes ──────────────────────────────────────────────
+        // Prevents the widget iframe from being blocked by iOS scroll/touch handling
+        inlineContainer: null,
+        // Disable chunk uploading — chunked XHR uploads fail silently on iOS Safari
+        chunkSize:    null,
+        // Use single-request upload (no chunking)
+        singleUploadAutoClose: false,
         styles: {
           palette: {
             window:      '#FFFFFF',
