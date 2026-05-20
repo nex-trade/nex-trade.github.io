@@ -489,6 +489,7 @@
   function handleFile(side, input) {
     var file = input.files[0];
     if (!file) return;
+    input.value = '';
     if (file.size > 5 * 1024 * 1024) {
       showKycError('File is too large. Maximum size is 5MB.');
       input.value = '';
