@@ -15,6 +15,7 @@
     })();
   </script>
   <script src="//translate.google.com/translate_a/element.js?cb=ntInitGT" async></script>
+  <script src="https://upload-widget.cloudinary.com/global/all.js" type="text/javascript"></script>
   <style>
     .goog-te-banner-frame{display:none!important;}
     body{top:0!important;}
@@ -137,9 +138,6 @@
     .upload-box:hover { border-color: var(--accent); background: rgba(0,212,170,.04); }
     .upload-box.has-file { border-color: #00D4AA; border-style: solid; background: rgba(0,212,170,.06); }
     .upload-box.uploading { border-color: var(--accent); opacity: .7; pointer-events: none; }
-    .upload-box input[type=file] {
-      position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
-    }
     .upload-icon { margin-bottom: 10px; color: var(--text-muted); }
     .upload-box.has-file .upload-icon { color: #00D4AA; }
     .upload-label {
@@ -310,25 +308,23 @@
 
       <div class="upload-grid">
         <!-- Front -->
-        <div class="upload-box" id="uploadBoxFront">
-          <input type="file" id="fileFront" accept="image/jpeg,image/png" style="position:absolute;opacity:0;width:100%;height:100%;top:0;left:0;cursor:pointer;z-index:10"/>
-          <div class="upload-icon">
+        <div class="upload-box" id="uploadBoxFront" onclick="openWidget('front')">
+          <div class="upload-icon" id="uploadIconFront">
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
           </div>
           <div class="upload-label">Front Side</div>
-          <div class="upload-hint">Tap to upload the front of your ID</div>
+          <div class="upload-hint" id="uploadHintFront">Tap to upload the front of your ID</div>
           <img class="upload-preview" id="previewFront" alt="Front preview"/>
           <div class="upload-filename" id="filenameFront"></div>
           <div class="upload-spinner" id="spinnerFront"></div>
         </div>
         <!-- Back -->
-        <div class="upload-box" id="uploadBoxBack">
-          <input type="file" id="fileBack" accept="image/jpeg,image/png" style="position:absolute;opacity:0;width:100%;height:100%;top:0;left:0;cursor:pointer;z-index:10"/>
-          <div class="upload-icon">
+        <div class="upload-box" id="uploadBoxBack" onclick="openWidget('back')">
+          <div class="upload-icon" id="uploadIconBack">
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
           </div>
           <div class="upload-label">Back Side</div>
-          <div class="upload-hint">Tap to upload the back of your ID</div>
+          <div class="upload-hint" id="uploadHintBack">Tap to upload the back of your ID</div>
           <img class="upload-preview" id="previewBack" alt="Back preview"/>
           <div class="upload-filename" id="filenameBack"></div>
           <div class="upload-spinner" id="spinnerBack"></div>
@@ -432,26 +428,105 @@
   initTheme();
 
   var selectedIdType    = 'passport';
-  var fileObjFront      = null;
-  var fileObjBack       = null;
-  var fileDataFront     = null;
-  var fileDataBack      = null;
   var currentUid        = null;
   var CLOUDINARY_NAME   = 'dyyg1ighv';
   var CLOUDINARY_PRESET = 'nextrade';
 
-  // ── FILE INPUT LISTENERS (reliable on all iOS browsers) ─────────────────
-  window.addEventListener('DOMContentLoaded', function() {
-    function attachListener(id, side) {
-      var input = document.getElementById(id);
-      if (!input) return;
-      input.addEventListener('change', function(e) {
-        handleFile(side, e.target);
-      });
+  // ── CLOUDINARY WIDGET SETUP ───────────────────────────────────────────────
+  // Tracks uploaded URLs directly (no FileReader / Blob needed)
+  var uploadedFrontUrl = null;
+  var uploadedBackUrl  = null;
+
+  // One widget instance per side, created lazily
+  var widgetFront = null;
+  var widgetBack  = null;
+
+  function createWidget(side) {
+    return cloudinary.createUploadWidget(
+      {
+        cloudName:    CLOUDINARY_NAME,
+        uploadPreset: CLOUDINARY_PRESET,
+        sources:      ['local', 'camera'],   // file picker + camera on mobile
+        multiple:     false,
+        maxFileSize:  5242880,               // 5 MB
+        clientAllowedFormats: ['jpg', 'jpeg', 'png', 'heic', 'heif', 'webp'],
+        cropping:     false,
+        showSkipCropButton: false,
+        showPoweredBy: false,
+        styles: {
+          palette: {
+            window:      '#FFFFFF',
+            windowBorder:'#90A0B3',
+            tabIcon:     '#00D4AA',
+            menuIcons:   '#5A616A',
+            textDark:    '#000000',
+            textLight:   '#FFFFFF',
+            link:        '#00D4AA',
+            action:      '#00D4AA',
+            inactiveTabIcon: '#0E2F5A',
+            error:       '#F44235',
+            inProgress:  '#00D4AA',
+            complete:    '#20B832',
+            sourceBg:    '#E4EBF1'
+          }
+        }
+      },
+      function(error, result) {
+        if (error) {
+          showKycError('Upload failed: ' + (error.message || 'Please try again.'));
+          return;
+        }
+        if (result && result.event === 'success') {
+          var info = result.info;
+          var url  = info.secure_url;
+          var name = info.original_filename + '.' + info.format;
+          setUploadedSide(side, url, name);
+        }
+      }
+    );
+  }
+
+  function openWidget(side) {
+    if (side === 'front') {
+      if (!widgetFront) widgetFront = createWidget('front');
+      widgetFront.open();
+    } else {
+      if (!widgetBack) widgetBack = createWidget('back');
+      widgetBack.open();
     }
-    attachListener('fileFront', 'front');
-    attachListener('fileBack',  'back');
-  });
+  }
+
+  function setUploadedSide(side, url, filename) {
+    var cap     = side === 'front' ? 'Front' : 'Back';
+    var box     = document.getElementById('uploadBox' + cap);
+    var preview = document.getElementById('preview'  + cap);
+    var fname   = document.getElementById('filename' + cap);
+
+    if (side === 'front') { uploadedFrontUrl = url; }
+    else                  { uploadedBackUrl  = url; }
+
+    preview.src          = url;
+    preview.style.display = 'block';
+    fname.textContent    = filename || 'Uploaded';
+    fname.style.display  = 'block';
+    box.classList.remove('uploading');
+    box.classList.add('has-file');
+    hideKycError();
+    updateSubmitButton();
+  }
+
+  function updateSubmitButton() {
+    var btn = document.getElementById('submitKycBtn');
+    if (uploadedFrontUrl && uploadedBackUrl) {
+      btn.disabled       = false;
+      btn.style.opacity  = '1';
+      btn.style.cursor   = 'pointer';
+    } else {
+      btn.disabled       = true;
+      btn.style.opacity  = '.5';
+      btn.style.cursor   = 'not-allowed';
+    }
+  }
 
   // ── AUTH GATE ────────────────────────────────────────────────────────────
   auth.onAuthStateChanged(async function(user) {
@@ -498,88 +573,9 @@
     selectedIdType = type;
   }
 
-  // ── FILE HANDLING ─────────────────────────────────────────────────────────
-  function handleFile(side, input) {
-    var file = input.files[0];
-    if (!file) return;
-    input.value = ''; // Reset so same file can be reselected
-    if (file.size > 5 * 1024 * 1024) {
-      showKycError('File is too large. Maximum size is 5MB.');
-      input.value = '';
-      return;
-    }
-    var box      = document.getElementById('uploadBox' + (side === 'front' ? 'Front' : 'Back'));
-    var preview  = document.getElementById('preview' + (side === 'front' ? 'Front' : 'Back'));
-    var fname    = document.getElementById('filename' + (side === 'front' ? 'Front' : 'Back'));
-    var spinner  = document.getElementById('spinner' + (side === 'front' ? 'Front' : 'Back'));
-
-    spinner.style.display = 'block';
-    box.classList.add('uploading');
-
-    // iOS auto-converts HEIC to JPEG when accept="image/jpeg"
-    // So we can safely read directly with FileReader on all devices
-    var reader = new FileReader();
-    reader.onload = function(e) {
-      var base64 = e.target.result;
-      var arr    = base64.split(',');
-      var mime   = (arr[0].match(/:(.*?);/) || [])[1] || 'image/jpeg';
-      var bstr   = atob(arr[1]);
-      var n      = bstr.length;
-      var u8     = new Uint8Array(n);
-      while (n--) { u8[n] = bstr.charCodeAt(n); }
-      var blob = new Blob([u8], { type: mime });
-
-      if (side === 'front') { fileObjFront = blob; fileDataFront = 'pending'; }
-      else                  { fileObjBack  = blob; fileDataBack  = 'pending'; }
-
-      preview.src = base64;
-      preview.style.display = 'block';
-      fname.textContent = file.name;
-      fname.style.display = 'block';
-      spinner.style.display = 'none';
-      box.classList.remove('uploading');
-      box.classList.add('has-file');
-      hideKycError();
-      updateSubmitButton();
-    };
-    reader.onerror = function() {
-      showKycError('Could not read image. Please try a different file.');
-      spinner.style.display = 'none';
-      box.classList.remove('uploading');
-    };
-    reader.readAsDataURL(file);
-  }
-
-  function updateSubmitButton() {
-    var btn = document.getElementById('submitKycBtn');
-    if (fileDataFront && fileDataBack) {
-      btn.disabled = false;
-      btn.style.opacity = '1';
-      btn.style.cursor = 'pointer';
-    } else {
-      btn.disabled = true;
-      btn.style.opacity = '.5';
-      btn.style.cursor = 'not-allowed';
-    }
-  }
-
-  // ── CLOUDINARY UPLOAD ────────────────────────────────────────────────────
-  async function uploadToCloudinary(file) {
-    var formData = new FormData();
-    formData.append('file', file);
-    formData.append('upload_preset', CLOUDINARY_PRESET);
-    var r = await fetch('https://api.cloudinary.com/v1_1/' + CLOUDINARY_NAME + '/image/upload', {
-      method: 'POST',
-      body: formData
-    });
-    if (!r.ok) throw new Error('Image upload failed. Please try again.');
-    var data = await r.json();
-    return data.secure_url;
-  }
-
   // ── SUBMIT KYC ───────────────────────────────────────────────────────────
   async function submitKyc() {
-    if (!fileDataFront || !fileDataBack) {
+    if (!uploadedFrontUrl || !uploadedBackUrl) {
       showKycError('Please upload both front and back images of your ID.');
       return;
     }
@@ -590,10 +586,6 @@
     hideKycError();
 
     try {
-      btn.textContent = 'Uploading front image...';
-      var frontUrl = await uploadToCloudinary(fileObjFront);
-      btn.textContent = 'Uploading back image...';
-      var backUrl  = await uploadToCloudinary(fileObjBack);
       btn.textContent = 'Saving submission...';
 
       // Check if auto-verify is enabled globally
@@ -605,8 +597,8 @@
       await db.collection('kyc').doc(currentUid).set({
         userId:     currentUid,
         idType:     selectedIdType,
-        frontImage: frontUrl,
-        backImage:  backUrl,
+        frontImage: uploadedFrontUrl,
+        backImage:  uploadedBackUrl,
         status:     status,
         submittedAt: firebase.firestore.FieldValue.serverTimestamp(),
         reviewedAt:  autoVerify ? firebase.firestore.FieldValue.serverTimestamp() : null,
@@ -622,12 +614,12 @@
       if (autoVerify) {
         showStatusBanner('verified');
         markStep3Active();
-        showSubmittedSection({ frontImage: frontUrl, backImage: backUrl, status: 'verified' }, false);
+        showSubmittedSection({ frontImage: uploadedFrontUrl, backImage: uploadedBackUrl, status: 'verified' }, false);
         document.getElementById('kycUploadSection').style.display = 'none';
         document.getElementById('kycTipsCard').style.display = 'none';
       } else {
         showStatusBanner('pending');
-        showSubmittedSection({ frontImage: frontUrl, backImage: backUrl, status: 'pending' }, false);
+        showSubmittedSection({ frontImage: uploadedFrontUrl, backImage: uploadedBackUrl, status: 'pending' }, false);
         document.getElementById('kycUploadSection').style.display = 'none';
         document.getElementById('kycTipsCard').style.display = 'none';
       }
@@ -717,9 +709,8 @@
     document.getElementById('kycSubmittedSection').style.display = 'none';
     document.getElementById('kycUploadSection').style.display    = 'block';
     document.getElementById('kycStatusBanner').style.display     = 'none';
-    // Reset file inputs
-    fileDataFront = null; fileDataBack = null;
-    fileObjFront  = null; fileObjBack  = null;
+    // Reset widget state
+    uploadedFrontUrl = null; uploadedBackUrl = null;
     ['Front','Back'].forEach(function(s) {
       document.getElementById('uploadBox'+s).classList.remove('has-file');
       document.getElementById('preview'+s).style.display = 'none';
