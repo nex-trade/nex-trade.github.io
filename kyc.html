@@ -505,19 +505,38 @@
     spinner.style.display = 'block';
     box.classList.add('uploading');
 
-    if (side === 'front') { fileObjFront = file; fileDataFront = 'pending'; }
-    else                  { fileObjBack  = file; fileDataBack  = 'pending'; }
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      // Store as Blob for Cloudinary upload (stable on all devices)
+      var base64 = e.target.result;
+      var arr    = base64.split(',');
+      var mime   = (arr[0].match(/:(.*?);/) || [])[1] || 'image/jpeg';
+      var bstr   = atob(arr[1]);
+      var n      = bstr.length;
+      var u8     = new Uint8Array(n);
+      while (n--) { u8[n] = bstr.charCodeAt(n); }
+      var blob = new Blob([u8], { type: mime });
 
-    var objectUrl = URL.createObjectURL(file);
-    preview.src = objectUrl;
-    preview.style.display = 'block';
-    fname.textContent = file.name;
-    fname.style.display = 'block';
-    spinner.style.display = 'none';
-    box.classList.remove('uploading');
-    box.classList.add('has-file');
-    hideKycError();
-    updateSubmitButton();
+      if (side === 'front') { fileObjFront = blob; fileDataFront = 'pending'; }
+      else                  { fileObjBack  = blob; fileDataBack  = 'pending'; }
+
+      // Use base64 for preview — works on iPhone and Android
+      preview.src = base64;
+      preview.style.display = 'block';
+      fname.textContent = file.name;
+      fname.style.display = 'block';
+      spinner.style.display = 'none';
+      box.classList.remove('uploading');
+      box.classList.add('has-file');
+      hideKycError();
+      updateSubmitButton();
+    };
+    reader.onerror = function() {
+      showKycError('Could not read image. Please try a different file.');
+      spinner.style.display = 'none';
+      box.classList.remove('uploading');
+    };
+    reader.readAsDataURL(file);
   }
 
   function updateSubmitButton() {
