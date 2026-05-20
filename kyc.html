@@ -311,7 +311,7 @@
       <div class="upload-grid">
         <!-- Front -->
         <div class="upload-box" id="uploadBoxFront" onclick="document.getElementById('fileFront').click()">
-          <input type="file" id="fileFront" accept="image/jpeg,image/jpg,image/png,image/heic,image/heif" onclick="this.value=''" onchange="handleFile('front', this)"/>
+          <input type="file" id="fileFront" accept="image/jpeg" onclick="this.value=''" onchange="handleFile('front', this)"/>
           <div class="upload-icon">
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
           </div>
@@ -323,7 +323,7 @@
         </div>
         <!-- Back -->
         <div class="upload-box" id="uploadBoxBack" onclick="document.getElementById('fileBack').click()">
-          <input type="file" id="fileBack" accept="image/jpeg,image/jpg,image/png,image/heic,image/heif" onclick="this.value=''" onchange="handleFile('back', this)"/>
+          <input type="file" id="fileBack" accept="image/jpeg" onclick="this.value=''" onchange="handleFile('back', this)"/>
           <div class="upload-icon">
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
           </div>
@@ -505,9 +505,10 @@
     spinner.style.display = 'block';
     box.classList.add('uploading');
 
+    // iOS auto-converts HEIC to JPEG when accept="image/jpeg"
+    // So we can safely read directly with FileReader on all devices
     var reader = new FileReader();
     reader.onload = function(e) {
-      // Store as Blob for Cloudinary upload (stable on all devices)
       var base64 = e.target.result;
       var arr    = base64.split(',');
       var mime   = (arr[0].match(/:(.*?);/) || [])[1] || 'image/jpeg';
@@ -520,7 +521,6 @@
       if (side === 'front') { fileObjFront = blob; fileDataFront = 'pending'; }
       else                  { fileObjBack  = blob; fileDataBack  = 'pending'; }
 
-      // Use base64 for preview — works on iPhone and Android
       preview.src = base64;
       preview.style.display = 'block';
       fname.textContent = file.name;
